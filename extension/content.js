@@ -28,9 +28,12 @@ ws.addEventListener("message", (event) => {
   if (msg.type === "error" && msg.reason === "sala já existe") {
     toServer({ type: "join", roomId: ROOM_ID, name: NAME });
   }
-
+  
   if (msg.type === "joined") {
     isHost = msg.isHost;
+    if (!isHost && msg.state) {
+      toPage("apply", { playing: msg.state.playing, time: msg.state.time });
+    }
   }
 
   if (msg.type === "promoted") {

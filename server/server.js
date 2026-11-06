@@ -20,11 +20,7 @@ function createRoom(roomId, hostWs) {
   return {
     members: new Set([hostWs]),
     host: hostWs,
-    lastState: {
-      playing: false,
-      time: 0,
-      updatedAt: Date.now()
-    }
+    lastState: null
   }
 }
 
@@ -56,6 +52,15 @@ const handlers = {
   chat: handleChat,
   state: handleState,
 };
+
+function estimateState(room) {
+  const s = room.lastState;
+  if (!s) return null;            
+  if (!s.playing) return s;       
+
+  const elapsed = Date.now() - s.updatedAt;  
+  return { playing: true, time: s.time + elapsed };
+}
 
 function handleCreate(ws, msg) {
   const { roomId, name } = msg;
@@ -101,7 +106,7 @@ function handleJoin(ws, msg) {
 
   const names = [...room.members].map((member) => clients.get(member).name);
 
-  send(ws, { type: "joined", roomId, members: names, state: room.lastState, isHost: false });
+  send(ws, { type: "joined", roomId, members: names, state: estimateState(room), isHost: false });
   broadcast(room, { type: "member", name, action: "joined" }, ws)
 }
 
