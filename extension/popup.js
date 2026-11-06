@@ -8,6 +8,10 @@ chrome.storage.local.get("name").then(({ name }) => {
   if (name) nameInput.value = name;
 });
 
+nameInput.addEventListener("input", () => {
+  chrome.storage.local.set({ name: nameInput.value.trim() });
+});
+
 createBtn.addEventListener("click", async () => {
   const name = nameInput.value.trim();
   if (!name) {
