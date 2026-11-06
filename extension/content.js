@@ -6,7 +6,7 @@ let ws = null;
 let roomId = null;
 let myName = null;
 let isHost = false;
-
+let ignoreReportsUntil = 0
 // ---------- comunicação com o page.js ----------
 
 function toPage(action, data = {}) {
@@ -19,6 +19,7 @@ window.addEventListener("message", (event) => {
   if (msg?.source !== "watch-party-page") return;
 
   if (msg.action === "state") {
+    if (Date.now() < ignoreReportsUntil) return; // ainda na janela de entrada
     toServer({ type: "state", playing: msg.playing, time: msg.time });
   }
 
@@ -39,8 +40,11 @@ function handleServerMessage(event) {
 
   if (msg.type === "joined") {
     isHost = msg.isHost;
-    if (!isHost && msg.state) {
-      toPage("apply", { playing: msg.state.playing, time: msg.state.time });
+    if (!isHost) {
+      ignoreReportsUntil = Date.now() + 5000; // ignora o autoplay de quem acabou de entrar
+      if (msg.state) {
+        toPage("apply", { playing: msg.state.playing, time: msg.state.time });
+      }
     }
   }
 
@@ -87,3 +91,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const link = `${location.origin}${location.pathname}?wp=${roomId}`;
   sendResponse({ link });
 });
+
+// ---------- entrar pelo link de convite ----------
+
+const inviteRoom = new URLSearchParams(location.search).get("wp");
+
+if (inviteRoom) {
+  chrome.storage.local.get("name").then(({ name }) => {
+    roomId = inviteRoom;
+    myName = name || "Convidado";
+    connect(() => toServer({ type: "join", roomId, name: myName }));
+  });
+}

@@ -29,6 +29,7 @@ window.addEventListener("message", (event) => {
   const player = getPlayer();
   if (!player) return console.warn("[watch-party] nenhum player ativo");
 
+  
   switch (msg.action) {
     case "play":
       player.play()
