@@ -8,6 +8,8 @@ const SERVER_URL = "ws://localhost:8080";
 const ROOM_ID = "teste"; // temporário, até ter UI
 const NAME = "Gabriel";  // temporário
 
+let isHost = false;
+
 const ws = new WebSocket(SERVER_URL);
 
 function toServer(msg) {
@@ -27,9 +29,19 @@ ws.addEventListener("message", (event) => {
     toServer({ type: "join", roomId: ROOM_ID, name: NAME });
   }
 
+  if (msg.type === "joined") {
+    isHost = msg.isHost;
+  }
+
+  if (msg.type === "promoted") {
+    isHost = true;
+  }
+
   if (msg.type === "state"){
     toPage("apply", {playing: msg.playing, time: msg.time})
   }
+
+ 
 });
 
 window.addEventListener("message", (event) => {
@@ -38,6 +50,10 @@ window.addEventListener("message", (event) => {
   if (msg?.source !== "watch-party-page") return;
 
   if(msg?.action === "state"){
+    toServer({ type: "state", playing: msg.playing, time: msg.time });
+  }
+
+  if (msg.action === "heartbeat" && isHost) {
     toServer({ type: "state", playing: msg.playing, time: msg.time });
   }
 
