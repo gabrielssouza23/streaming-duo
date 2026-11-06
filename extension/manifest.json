@@ -3,15 +3,30 @@
   "name": "Streaming Duo",
   "version": "0.1.0",
   "description": "Assistir Netflix junto",
-  "content_scripts": [
-  {
-    "matches": ["https://www.netflix.com/*"],
-    "js": ["page.js"],
-    "world": "MAIN"
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Streaming Duo"
   },
-  {
-    "matches": ["https://www.netflix.com/*"],
-    "js": ["content.js"]
-  }
-]
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.netflix.com/*"
+      ],
+      "js": [
+        "page.js"
+      ],
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.netflix.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
 }
