@@ -23,7 +23,53 @@ Eu e minha namorada já usávamos uma extensão pronta para assistir séries jun
 - **Extensão:** Chrome Extension Manifest V3, JavaScript puro
 - **Deploy:** Render
 
+## Estrutura
+
+```
+server/
+  server.js        # salas, protocolo e repasse de mensagens
+extension/
+  manifest.json
+  page.js          # controle do player (contexto da página)
+  content.js       # ponte entre página e servidor (contexto isolado)
+  popup.html
+  popup.js         # criação de sala e link de convite
+docs/
+  demo.gif
+```
+
 ## Arquitetura
+
+O projeto tem duas partes: o **servidor** e a **extensão**. A extensão, por sua vez, é dividida em três peças, porque cada uma roda num contexto diferente do navegador.
+
+### Servidor
+
+Node.js com `ws`. Guarda as salas em memória e repassa mensagens entre os membros de cada sala. Ele não sabe nada sobre Netflix: só recebe, valida e repassa.
+
+Dois mapas formam todo o estado:
+- `rooms`: `Map<roomId, { members, host, lastState }>` responde "quem está nesta sala?"
+- `clients`: `Map<socket, { roomId, name }>` responde "de quem é esta conexão e em que sala ela está?"
+
+### Extensão
+
+- **`page.js`** roda no contexto da própria página (`"world": "MAIN"`). É a única peça que enxerga o objeto interno do player da Netflix. Ela lê o estado do vídeo, aplica estados recebidos e detecta ações do usuário pelos eventos do `<video>`.
+- **`content.js`** roda no contexto isolado da extensão, que tem acesso às APIs do Chrome mas não às variáveis da página. Mantém a conexão WebSocket, faz a ponte entre a página e o servidor e decide o que deve ou não ser enviado (janelas de supressão e heartbeat do host).
+- **`popup`** cria a sala e gera o link de convite.
+
+### Como as peças conversam
+
+- **`page.js` ↔ `content.js`:** `window.postMessage`, com uma etiqueta (`source`) diferente em cada direção, para que nenhum lado processe as próprias mensagens.
+- **`popup` → `content.js`:** `chrome.tabs.sendMessage`.
+- **`content.js` ↔ servidor:** WebSocket com mensagens JSON (veja [Protocolo](#protocolo)).
+
+### O caminho de uma pausa
+
+1. Você pausa o vídeo e o `<video>` dispara o evento `pause`.
+2. O `page.js` lê o estado atual do player e envia para o `content.js`.
+3. O `content.js` manda `{ type: "state", playing: false, time }` para o servidor.
+4. O servidor atualiza o último estado da sala e repassa para os outros membros, anexando quem enviou.
+5. O `content.js` da outra pessoa recebe e pede ao `page.js` para aplicar o estado.
+6. O `page.js` faz o seek (se a diferença passar de 1,5 s) e pausa, ignorando os eventos que ele mesmo gerou durante 1 s.
 
 ```
 ┌──────────────── Extensão (aba da Netflix) ────────────────┐
@@ -96,6 +142,10 @@ npm start          # ou: node --watch server.js
 3. Clique em **Carregar sem compactação** e selecione a pasta `extension/`.
 4. Ao abrir a Netflix, permita o acesso à rede local quando o Chrome pedir (necessário só com o servidor em `localhost`).
 
+## Deploy
+
+O servidor roda no Render como Web Service (Root Directory `server`, build `npm install`, start `npm start`). A porta vem de `process.env.PORT`. Em produção, a extensão se conecta via `wss://`.
+
 ## Limitações conhecidas
 
 - Troca de episódio é manual para cada pessoa.
@@ -115,8 +165,7 @@ npm start          # ou: node --watch server.js
 
 - **WebSocket do zero:** handshake de upgrade, eventos (`connection`, `message`, `close`) e por que a mensagem chega como `Buffer`.
 - **Desenho de protocolo:** decidir o formato das mensagens antes de escrever código, e separar o que o cliente envia do que o servidor repassa.
-- **Mundos de execução em extensões:** content scripts não enxergam as variáveis JS da página, e a ponte entre eles é feita com `postMessage`.
-- **Sincronização em tempo real:** eco, drift, latência e por que sincronizar estado é mais simples que sincronizar eventos.
+- **Contextos de execução em extensões:** content scripts não enxergam as variáveis JS da página, e a ponte entre eles é feita com `postMessage`.- **Sincronização em tempo real:** eco, drift, latência e por que sincronizar estado é mais simples que sincronizar eventos.
 - **Engenharia reversa de uma API interna,** explorando objetos globais pelo DevTools até encontrar o player e seus métodos.
 - **Armadilhas de JavaScript** que só aparecem na prática: `!valor` com `false` e `0` válidos, `const` preso no escopo de bloco, `clear()` vs `delete()`, timers criados dentro de handlers.
 - **Depuração em vários contextos:** console da página, do content script e do popup são separados, e um `catch` genérico pode esconder o erro real.
