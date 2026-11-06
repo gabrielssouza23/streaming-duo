@@ -77,7 +77,8 @@ function handleCreate(ws, msg) {
     type: "joined",
     roomId,
     members: [name],
-    state: room.lastState
+    state: room.lastState,
+    isHost: true
   })
 
   console.log("salas:", rooms.size);
@@ -100,7 +101,7 @@ function handleJoin(ws, msg) {
 
   const names = [...room.members].map((member) => clients.get(member).name);
 
-  send(ws, { type: "joined", roomId, members: names, state: room.lastState });
+  send(ws, { type: "joined", roomId, members: names, state: room.lastState, isHost: false });
   broadcast(room, { type: "member", name, action: "joined" }, ws)
 }
 
@@ -165,6 +166,7 @@ function handleLeave(ws) {
     const [newHost] = room.members;
     room.host = newHost;
     broadcast(room, { type: "host", name: clients.get(newHost).name });
+    send(newHost, { type: "promoted" });
   }
 }
 
