@@ -33,8 +33,11 @@ function expectedTimeNow() {
 
 function isEcho(state) {
   if (!expected) return false;
-  if (state.playing !== expected.playing) return false;  // tocando/pausado diferente: foi o usuário
-  return Math.abs(state.time - expectedTimeNow()) < 1500; // tempo bate: é eco
+  if (state.playing !== expected.playing) return false;
+
+  const min = expected.time - 1500;      // onde o apply começou
+  const max = expectedTimeNow() + 1500;  // onde deveria estar agora
+  return state.time >= min && state.time <= max;
 }
 
 
