@@ -59,21 +59,40 @@ function handleServerMessage(event) {
   if (msg.type === "state") {
     toPage("apply", { playing: msg.playing, time: msg.time });
   }
+
+  if (msg.type === "error" && roomId) {
+    if (msg.code === "ROOM_NOT_FOUND") {
+      toServer({ type: "create", roomId, name: myName }); // servidor reiniciou: recria com o mesmo ID
+    }
+    if (msg.code === "ROOM_EXISTS") {
+      toServer({ type: "join", roomId, name: myName });   // alguém recriou primeiro: entra
+    }
+  }
 }
+
+let reconnectDelay = 1000;
 
 function connect(onOpen) {
   ws = new WebSocket(SERVER_URL);
   ws.addEventListener("open", () => {
     console.log("[watch-party] conectado ao servidor");
+    reconnectDelay = 1000;
     onOpen();
   });
   ws.addEventListener("message", handleServerMessage);
   ws.addEventListener("close", () => {
     console.log("[watch-party] desconectado");
     ws = null;
-    roomId = null;
     isHost = false;
+    if (roomId) scheduleReconnect(); // estava numa sala: tenta voltar
   });
+}
+
+function scheduleReconnect() {
+  setTimeout(() => {
+    connect(() => toServer({ type: "join", roomId, name: myName }));
+    if (reconnectDelay < 10000) reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+  }, reconnectDelay)
 }
 
 // ---------- pedidos do popup ----------
