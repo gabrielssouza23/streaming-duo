@@ -56,10 +56,10 @@ const handlers = {
 
 function estimateState(room) {
   const s = room.lastState;
-  if (!s) return null;            
-  if (!s.playing) return s;       
+  if (!s) return null;
+  if (!s.playing) return s;
 
-  const elapsed = Date.now() - s.updatedAt;  
+  const elapsed = Date.now() - s.updatedAt;
   return { playing: true, time: s.time + elapsed };
 }
 
@@ -71,7 +71,7 @@ function handleCreate(ws, msg) {
   }
 
   if (rooms.has(roomId)) {
-    return send(ws, { type: "error", reason: "sala já existe" });
+    return send(ws, { type: "error", code: "ROOM_EXISTS", reason: "sala já existe" });
   }
 
   const room = createRoom(roomId, ws)
@@ -99,7 +99,7 @@ function handleJoin(ws, msg) {
 
   const room = rooms.get(roomId);
   if (!room) {
-    return send(ws, { type: "error", reason: "Sala não existe" })
+    return send(ws, { type: "error", code: "ROOM_NOT_FOUND", reason: "Sala não existe" })
   }
 
   room.members.add(ws)
@@ -179,6 +179,8 @@ function handleLeave(ws) {
 wss.on('connection', (ws) => {
   console.log("connected");
   ws.on('error', console.error);
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
 
   ws.on("message", (data) => {
     let msg;
@@ -205,3 +207,16 @@ wss.on('connection', (ws) => {
 
   ws.on("close", () => handleLeave(ws));
 });
+
+const pingInterval = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) {
+      ws.terminate(); // não respondeu ao último ping: dispara o close → handleLeave
+      continue;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 30000);
+
+wss.on("close", () => clearInterval(pingInterval));
