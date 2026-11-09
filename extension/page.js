@@ -1,12 +1,16 @@
 console.log("[watch-party] page carregado");
-let ignoreUntil = 0; // até quando ignorar reports (timestamp em ms)
+let expected = null; // { playing, time, at } — o estado que o último apply deveria produzir
 
 function getPlayer() {
   const videoPlayer = window.netflix?.appContext?.state?.playerApp?.getAPI?.()?.videoPlayer;
   if (!videoPlayer) return null;
 
-  const sessionId = videoPlayer.getAllPlayerSessionIds().find(id => id.startsWith("watch"));
-  if (!sessionId) return null;
+  const ids = videoPlayer.getAllPlayerSessionIds();
+  const sessionId = ids.find(id => id.startsWith("watch")) ?? ids[0];
+  if (!sessionId) {
+    console.warn("[watch-party] nenhuma sessão de player:", ids);
+    return null;
+  }
 
   return videoPlayer.getVideoPlayerBySessionId(sessionId);
 }
@@ -21,6 +25,19 @@ function getState() {
   return { playing, time }
 }
 
+function expectedTimeNow() {
+  if (!expected) return null;
+  if (!expected.playing) return expected.time;           // pausado: o tempo não andou
+  return expected.time + (Date.now() - expected.at);     // tocando: andou desde o apply
+}
+
+function isEcho(state) {
+  if (!expected) return false;
+  if (state.playing !== expected.playing) return false;  // tocando/pausado diferente: foi o usuário
+  return Math.abs(state.time - expectedTimeNow()) < 1500; // tempo bate: é eco
+}
+
+
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;                    // só mensagens desta própria aba
   const msg = event.data;
@@ -29,7 +46,6 @@ window.addEventListener("message", (event) => {
   const player = getPlayer();
   if (!player) return console.warn("[watch-party] nenhum player ativo");
 
-  
   switch (msg.action) {
     case "play":
       player.play()
@@ -43,7 +59,7 @@ window.addEventListener("message", (event) => {
       }
       break;
     case "apply":
-      ignoreUntil = Date.now() + 1000;
+      expected = { playing: msg.playing, time: msg.time, at: Date.now() };
       if (typeof msg.time === "number" && Math.abs(player.getCurrentTime() - msg.time) > 1500) {
         player.seek(msg.time);
       }
@@ -65,11 +81,12 @@ function toContent(action, data = {}) {
 }
 
 function reportState() {
-  if (Date.now() < ignoreUntil) return; // eco do apply, ignora
-
   const state = getState();
-  if (!state) return;                   // sem player, nada a reportar
+  if (!state) return; 
+  
+  if (isEcho(state)) return;
 
+  expected = null;
   toContent("state", state);
 }
 

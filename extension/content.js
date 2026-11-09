@@ -31,7 +31,11 @@ window.addEventListener("message", (event) => {
 // ---------- comunicação com o servidor ----------
 
 function toServer(msg) {
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  } else {
+    console.warn("[watch-party] não enviado, ws:", ws?.readyState, msg.type);
+  }
 }
 
 function handleServerMessage(event) {

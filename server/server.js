@@ -194,6 +194,7 @@ wss.on('connection', (ws) => {
     }
 
     try {
+      console.log("msg:", msg.type, "de", clients.get(ws)?.name);
       handler(ws, msg);
     } catch (err) {
       console.error(`erro no handler "${msg.type}":`, err);
